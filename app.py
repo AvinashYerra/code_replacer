@@ -1,6 +1,5 @@
 import streamlit as st
 
-# --- Define environment-specific replacements ---
 ENV_CONFIG = {
     "dev": {
         "$DI_DB$": "PHIHUB_DEALINSIGHTSD_DB",
@@ -19,38 +18,60 @@ ENV_CONFIG = {
     },
 }
 
-# --- Streamlit UI ---
+st.set_page_config(page_title="Environment Variable Replacer", layout="wide")
 st.title("🔧 Environment Variable Replacer")
 
 st.markdown("""
 Paste your code or configuration below, choose an environment,
-and the app will replace the relevant variables.
+and the app will replace the relevant variables efficiently — even for large files.
 """)
 
+# --- Helper function: add line numbers for preview only ---
+def add_line_numbers(text: str) -> str:
+    lines = text.splitlines()
+    numbered_lines = [f"{i+1:4d}: {line}" for i, line in enumerate(lines)]
+    return "\n".join(numbered_lines)
 
-# Input area for code
-code_input = st.text_area("Paste your code here:", height=250)
+# --- Input area ---
+code_input = st.text_area("Paste your code here:", height=350, key="input_code")
 
-# Dropdown for environment selection
+# --- Environment selection ---
 env = st.selectbox("Select Environment", ["dev", "stage", "prod"])
 
-# Replace button
+# --- Partition settings ---
+CHUNK_SIZE = 500
+
+# --- Button click logic ---
 if st.button("Replace Variables"):
     if not code_input.strip():
         st.warning("Please paste some code first.")
     else:
-        replaced_code = code_input
-        for var, value in ENV_CONFIG[env].items():
-            replaced_code = replaced_code.replace(f"${{{var}}}", value)
-            replaced_code = replaced_code.replace(f"{var}", value)
+        lines = code_input.splitlines()
+        chunks = [lines[i:i + CHUNK_SIZE] for i in range(0, len(lines), CHUNK_SIZE)]
 
-        st.success(f"Variables replaced for **{env.upper()}** environment:")
+        replaced_chunks = []
+        for chunk in chunks:
+            chunk_text = "\n".join(chunk)
+            for var, value in ENV_CONFIG[env].items():
+                chunk_text = chunk_text.replace(f"${{{var}}}", value)
+                chunk_text = chunk_text.replace(f"{var}", value)
+            replaced_chunks.append(chunk_text)
+
+        replaced_code = "\n".join(replaced_chunks)
+
+        st.success(f"✅ Variables replaced for **{env.upper()}** environment")
+        st.markdown("### 🧾 Replaced Code")
         st.code(replaced_code, language="python")
 
-        # Optional: download button
+        # --- Download clean output (without line numbers) ---
         st.download_button(
             label="💾 Download Updated Code",
             data=replaced_code,
             file_name=f"updated_{env}.txt",
             mime="text/plain"
         )
+
+# --- Optional: show preview of input with line numbers ---
+if code_input:
+    with st.expander("📋 Preview Input with Line Numbers"):
+        st.code(add_line_numbers(code_input), language="python")
